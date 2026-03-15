@@ -37,12 +37,12 @@ mvn clean package -DskipTests
 
 ### Step 3 — Start Node 1 (Terminal 1)
 ```bash
-mvn javafx:run -Djavafx.args="5001 NODE_001"
+mvn javafx:run -D javafx.args="5001 NODE_001"
 ```
 
 ### Step 4 — Start Node 2 (Terminal 2, wait ~5 seconds after Node 1)
 ```bash
-mvn javafx:run -Djavafx.args="5002 NODE_002"
+mvn javafx:run -D javafx.args="5002 NODE_002"
 ```
 
 Node 2 will:
