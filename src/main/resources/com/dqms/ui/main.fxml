@@ -9,7 +9,7 @@
       fx:controller="com.dqms.ui.MainController"
       spacing="0" styleClass="root-pane">
 
-    <!-- ── TOP BAR ──────────────────────────────────────────────────────── -->
+    <!-- ── TOP BAR ── -->
     <HBox styleClass="top-bar" alignment="CENTER_LEFT" spacing="16">
         <padding><Insets top="14" right="20" bottom="14" left="20"/></padding>
 

@@ -57,12 +57,12 @@ public class QueueManager {
      * @return true if this node already has a ticket in 'WAITING' status.
      */
     public boolean hasActiveTicket() {
-        synchronized (queue) {
-            return queue.stream()
-                    .anyMatch(t -> t.getOriginNodeId().equalsIgnoreCase(nodeId)
-                            && "WAITING".equals(t.getStatus()));
-        }
+        return queue.stream()
+                .anyMatch(t -> t.getOriginNodeId().equalsIgnoreCase(nodeId)
+                        && "WAITING".equals(t.getStatus()));
     }
+
+    // ── LOCAL OPERATIONS (triggered by this node's UI) ────────────────────────
 
     public synchronized Ticket createTicket(String registrationNumber, String studentName) {
         if (!isAdmin && hasActiveTicket()) {
