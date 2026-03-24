@@ -13,13 +13,6 @@ import java.util.logging.Logger;
 
 /**
  * Handles a single incoming TCP connection from a peer.
- * Reads one Message, routes it to QueueManager, then closes the connection.
- *
- * Routing:
- *   NEW_TICKET    → queueManager.receiveTicket(ticket)
- *   UPDATE_STATUS → queueManager.receiveStatusUpdate(ticketId, status)
- *   SYNC_REQUEST  → reply with SYNC_RESPONSE carrying relevant tickets
- *   SYNC_RESPONSE → queueManager.applySyncResponse(ticketList)
  */
 public class MessageHandler implements Runnable {
 
@@ -36,15 +29,22 @@ public class MessageHandler implements Runnable {
     @Override
     public void run() {
         try (socket;
-             ObjectInputStream in  = new ObjectInputStream(socket.getInputStream());
-             ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream())) {
+             ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
 
-            Message msg = (Message) in.readObject();
+            Object received = in.readObject();
+            if (!(received instanceof Message)) return;
+            
+            Message msg = (Message) received;
             String senderId = msg.getSenderNodeId();
-            LOG.info("Received " + msg.getType() + " from " + senderId);
+            
+            // Auto-register peer
+            String senderIp = socket.getInetAddress().getHostAddress();
+            if (senderIp.equals("0:0:0:0:0:0:0:1")) senderIp = "127.0.0.1";
+            queueManager.registerPeer(senderId, senderIp, msg.getSenderTcpPort(), msg.isSenderAdmin());
+
+            LOG.info(">>> [TCP] Received " + msg.getType() + " from " + senderId);
 
             switch (msg.getType()) {
-
                 case NEW_TICKET ->
                         queueManager.receiveTicket(msg.getTicket());
 
@@ -54,21 +54,23 @@ public class MessageHandler implements Runnable {
                 case SYNC_REQUEST -> {
                     // All nodes are now allowed to see all tickets.
                     // Send everything we have to ensure full replication.
-                    List<Ticket> filtered = queueManager.getUnfilteredTickets();
-
+                    List<Ticket> all = queueManager.getUnfilteredTickets(); 
                     Message response = Message.syncResponse(
                             queueManager.getNodeId(),
-                            filtered
+                            queueManager.isAdmin(),
+                            0, 
+                            all
                     );
-                    out.writeObject(response);
-                    out.flush();
-                    LOG.info("Sent SYNC_RESPONSE with " + filtered.size() + " tickets to " + senderId);
+                    // Only open OutputStream when replying
+                    try (ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream())) {
+                        out.writeObject(response);
+                        out.flush();
+                    }
                 }
 
                 case SYNC_RESPONSE ->
                         queueManager.applySyncResponse(msg.getTicketList());
             }
-
         } catch (Exception e) {
             LOG.warning("MessageHandler error: " + e.getMessage());
         }

@@ -140,9 +140,14 @@ public class MainController {
             return;
         }
 
-        // Find position in queue
-        List<Ticket> waiting = queueManager.getWaitingTickets();
-        int pos = waiting.indexOf(t) + 1;
+        // Find actual global position in queue
+        List<Ticket> allSystem = queueManager.getUnfilteredTickets();
+        List<Ticket> allWaiting = allSystem.stream()
+                .filter(ticket -> "WAITING".equals(ticket.getStatus()))
+                .sorted()
+                .toList();
+                
+        int pos = allWaiting.indexOf(t) + 1;
 
         joinFeedback.setStyle("-fx-text-fill: #1A7F4B;");
         joinFeedback.setText("✓ Joined queue! Position: #" + pos);
@@ -168,18 +173,20 @@ public class MainController {
 
     @FXML
     private void onRefresh() {
-        refreshTable();
-        log("Manual refresh at " + TIME_FMT.format(Instant.now()));
+        queueManager.loadFromDatabase();
+        log("Manual refresh (reloaded from DB) at " + TIME_FMT.format(Instant.now()));
     }
 
     // ── UI Update Helpers ─────────────────────────────────────────────────────
 
     private void refreshTable() {
-        List<Ticket> all = queueManager.getAllTicketsAsList();
-        tableData.setAll(all);
+        List<Ticket> allVisible = queueManager.getAllTicketsAsList();
+        tableData.setAll(allVisible);
 
-        long waiting = all.stream().filter(t -> "WAITING".equals(t.getStatus())).count();
-        long cleared = all.stream().filter(t -> "CLEARED".equals(t.getStatus())).count();
+        // Calculate totals based on the FULL system queue, not just the visible ones
+        List<Ticket> allSystem = queueManager.getUnfilteredTickets();
+        long waiting = allSystem.stream().filter(t -> "WAITING".equals(t.getStatus())).count();
+        long cleared = allSystem.stream().filter(t -> "CLEARED".equals(t.getStatus())).count();
 
         waitingCount.setText(String.valueOf(waiting));
         clearedCount.setText(String.valueOf(cleared));
@@ -202,16 +209,15 @@ public class MainController {
     private boolean canClear(Ticket ticket) {
         if (ticket == null || !"WAITING".equals(ticket.getStatus())) return false;
 
-        // ONLY Admin (NODE_001) can clear ANY ticket from the queue
+        // ONLY Admin can clear tickets. Regular nodes can only view.
         return queueManager.isAdmin();
     }
 
     private void refreshPeerStatus() {
         int count = queueManager.getPeerCount();
         peerCount.setText(String.valueOf(count));
-        statusLabel.setText(count > 0
-                ? "● " + count + " peer(s) connected"
-                : "○ No peers — standalone mode");
+        String roleStr = queueManager.isAdmin() ? "ADMIN" : "REGULAR";
+        statusLabel.setText(String.format("● %s | %d peer(s)", roleStr, count));
         statusLabel.setStyle(count > 0
                 ? "-fx-text-fill: #90EE90;"
                 : "-fx-text-fill: #FFB74D;");
