@@ -1,21 +1,21 @@
-<<<<<<< HEAD
 import java.sql.*;
 
 public class CheckDB {
     public static void main(String[] args) throws Exception {
-        String[] dbs = {"dqms-mvp/dqms_NODE_001.db", "dqms-mvp/dqms_NODE_002.db", "dqms-mvp/dqms_OFFICER.db"};
+        String[] dbs = {"dqms_OFFICER.db", "dqms_STUDENT_01.db"};
         
         for (String dbName : dbs) {
-            System.out.println("Checking " + dbName);
+            System.out.println("Checking DB: " + dbName);
             try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbName);
-                 Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery("SELECT * FROM tickets")) {
-                int count = 0;
+                 Statement stmt = conn.createStatement()) {
+                
+                ResultSet rs = stmt.executeQuery("SELECT * FROM tickets");
                 while (rs.next()) {
-                    System.out.println(" - ID: " + rs.getString("ticketId") + ", Origin: " + rs.getString("originNodeId") + ", Status: " + rs.getString("status"));
-                    count++;
+                    System.out.println(String.format("ID: %s | Reg: %s | Status: %s",
+                            rs.getString("ticketId"),
+                            rs.getString("registrationNumber"),
+                            rs.getString("status")));
                 }
-                System.out.println("Total rows in " + dbName + ": " + count);
             } catch (Exception e) {
                 System.out.println("Failed to read " + dbName + ": " + e.getMessage());
             }
@@ -23,29 +23,3 @@ public class CheckDB {
         }
     }
 }
-=======
-import java.sql.*;
-
-public class CheckDB {
-    public static void main(String[] args) throws Exception {
-        String[] dbs = {"dqms-mvp/dqms_NODE_001.db", "dqms-mvp/dqms_NODE_002.db", "dqms-mvp/dqms_OFFICER.db"};
-        
-        for (String dbName : dbs) {
-            System.out.println("Checking " + dbName);
-            try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbName);
-                 Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery("SELECT * FROM tickets")) {
-                int count = 0;
-                while (rs.next()) {
-                    System.out.println(" - ID: " + rs.getString("ticketId") + ", Origin: " + rs.getString("originNodeId") + ", Status: " + rs.getString("status"));
-                    count++;
-                }
-                System.out.println("Total rows in " + dbName + ": " + count);
-            } catch (Exception e) {
-                System.out.println("Failed to read " + dbName + ": " + e.getMessage());
-            }
-            System.out.println("-------------------------------------------------");
-        }
-    }
-}
->>>>>>> 30d08d7 (update: updated the UI and a few other functionalities)

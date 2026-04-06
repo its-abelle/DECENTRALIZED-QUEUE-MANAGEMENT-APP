@@ -32,49 +32,37 @@ public class Main extends Application {
         tcpPort = params.size() > 0 ? Integer.parseInt(params.get(0)) : 5001;
         nodeId  = params.size() > 1 ? params.get(1) : "NODE_001";
 
-        LOG.info("=== Starting DQMS Node: " + nodeId + " on port " + tcpPort + " ===");
+        isAdmin = params.stream().anyMatch(p -> "ADMIN".equalsIgnoreCase(p));
+        if (!isAdmin && params.isEmpty()) {
+            isAdmin = "NODE_001".equalsIgnoreCase(nodeId);
+        }
 
-        // ── 1. Init core components ──────────────────────────────────────────
-        DatabaseManager db     = new DatabaseManager(nodeId);
-        TCPClient       client = new TCPClient();
+        LOG.info("Starting DQMS Node: " + nodeId + " (Admin: " + isAdmin + ") on port " + tcpPort);
+
+        DatabaseManager db = new DatabaseManager(nodeId);
+        TCPClient client = new TCPClient();
+        client.setMyTcpPort(tcpPort);
         Map<String, NodeInfo> peers = new ConcurrentHashMap<>();
 
         queueManager = new QueueManager(nodeId, tcpPort, db, client, peers, isAdmin);
         queueManager.loadFromDatabase();
 
-        // ── 3. Start TCP server ──────────────────────────────────────────────
-        TCPServer server = new TCPServer(tcpPort, queueManager);
-        Thread serverThread = new Thread(server, "tcp-server");
-        serverThread.setDaemon(true);
-        serverThread.start();
+        new Thread(new TCPServer(tcpPort, queueManager), "tcp-server").start();
 
         UDPDiscoveryService discovery = new UDPDiscoveryService(
                 nodeId, tcpPort, isAdmin, peers,
                 peer -> {
-                    // Called when a NEW peer is discovered for the first time
-                    LOG.info("New peer found: " + peer + " — sending SYNC_REQUEST");
-                    Message response = client.requestSync(peer, nodeId);
+                    Message response = client.requestSync(peer, nodeId, isAdmin);
                     if (response != null && response.getTicketList() != null) {
                         queueManager.applySyncResponse(response.getTicketList());
                     }
                 }
         );
-        Thread discoveryThread = new Thread(discovery, "udp-discovery");
-        discoveryThread.setDaemon(true);
-        discoveryThread.start();
+        new Thread(discovery, "udp-discovery").start();
 
-        // ── 5. Wait for peer discovery ───────────────────────────────────────
-        LOG.info("Waiting 3s for peer discovery...");
-        Thread.sleep(3000);
-
-        // ── 6. Launch JavaFX UI ──────────────────────────────────────────────
-        FXMLLoader loader = new FXMLLoader(
-                getClass().getResource("/com/dqms/ui/main.fxml"));
-        Scene scene = new Scene(loader.load(), 860, 620);
-
-        // Apply stylesheet
-        scene.getStylesheets().add(
-                getClass().getResource("/com/dqms/ui/style.css").toExternalForm());
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/dqms/ui/dqms-main.fxml"));
+        Scene scene = new Scene(loader.load(), 1000, 700);
+        scene.getStylesheets().add(getClass().getResource("/com/dqms/ui/style.css").toExternalForm());
 
         MainController controller = loader.getController();
         controller.init(queueManager);
