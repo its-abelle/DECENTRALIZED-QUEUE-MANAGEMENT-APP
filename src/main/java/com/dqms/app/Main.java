@@ -28,30 +28,21 @@ public class Main extends Application {
 
     @Override
     public void start(Stage stage) throws Exception {
-        // Parse args (JavaFX passes them via getParameters())
         var params = getParameters().getRaw();
         tcpPort = params.size() > 0 ? Integer.parseInt(params.get(0)) : 5001;
         nodeId  = params.size() > 1 ? params.get(1) : "NODE_001";
 
-        // Check if "ADMIN" was passed anywhere in the arguments
-        isAdmin = params.stream().anyMatch(p -> "ADMIN".equalsIgnoreCase(p));
+        LOG.info("=== Starting DQMS Node: " + nodeId + " on port " + tcpPort + " ===");
 
-        // If not explicitly set via args, fallback to checking if it's the default NODE_001
-        if (!isAdmin && params.isEmpty()) {
-            isAdmin = "NODE_001".equalsIgnoreCase(nodeId);
-        }
-
-        LOG.info("=== Starting DQMS Node: " + nodeId + " (Admin: " + isAdmin + ") on port " + tcpPort + " ===");
-
+        // ── 1. Init core components ──────────────────────────────────────────
         DatabaseManager db     = new DatabaseManager(nodeId);
         TCPClient       client = new TCPClient();
-        client.setMyTcpPort(tcpPort); // Important for TCP-based discovery
-        
         Map<String, NodeInfo> peers = new ConcurrentHashMap<>();
 
         queueManager = new QueueManager(nodeId, tcpPort, db, client, peers, isAdmin);
         queueManager.loadFromDatabase();
 
+        // ── 3. Start TCP server ──────────────────────────────────────────────
         TCPServer server = new TCPServer(tcpPort, queueManager);
         Thread serverThread = new Thread(server, "tcp-server");
         serverThread.setDaemon(true);
@@ -60,8 +51,9 @@ public class Main extends Application {
         UDPDiscoveryService discovery = new UDPDiscoveryService(
                 nodeId, tcpPort, isAdmin, peers,
                 peer -> {
-                    LOG.info("UDP discovered peer: " + peer + " — requesting sync.");
-                    Message response = client.requestSync(peer, nodeId, isAdmin);
+                    // Called when a NEW peer is discovered for the first time
+                    LOG.info("New peer found: " + peer + " — sending SYNC_REQUEST");
+                    Message response = client.requestSync(peer, nodeId);
                     if (response != null && response.getTicketList() != null) {
                         queueManager.applySyncResponse(response.getTicketList());
                     }
@@ -71,16 +63,23 @@ public class Main extends Application {
         discoveryThread.setDaemon(true);
         discoveryThread.start();
 
-        Thread.sleep(2000);
+        // ── 5. Wait for peer discovery ───────────────────────────────────────
+        LOG.info("Waiting 3s for peer discovery...");
+        Thread.sleep(3000);
 
-        FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/dqms/ui/main.fxml"));
+        // ── 6. Launch JavaFX UI ──────────────────────────────────────────────
+        FXMLLoader loader = new FXMLLoader(
+                getClass().getResource("/com/dqms/ui/main.fxml"));
         Scene scene = new Scene(loader.load(), 860, 620);
-        scene.getStylesheets().add(getClass().getResource("/com/dqms/ui/style.css").toExternalForm());
+
+        // Apply stylesheet
+        scene.getStylesheets().add(
+                getClass().getResource("/com/dqms/ui/style.css").toExternalForm());
 
         MainController controller = loader.getController();
         controller.init(queueManager);
 
-        stage.setTitle("DQMS — " + nodeId + " (port " + tcpPort + ")");
+        stage.setTitle("DQMS — " + nodeId);
         stage.setScene(scene);
         stage.show();
     }
