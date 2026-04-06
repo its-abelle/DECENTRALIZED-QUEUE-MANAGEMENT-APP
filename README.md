@@ -1,165 +1,91 @@
-# DQMS MVP — Decentralized Queue Management System
+# Decentralized Queue Management System (DQMS)
+## Chuka University | Computer Science Project (Y3S2)
 
-## Chuka University | Computer Science Group Project
-
----
-
-## What This MVP Demonstrates
-
-Two fully independent nodes running on **one machine**, discovering each
-other via UDP multicast on localhost, and syncing queue state over TCP sockets.
-
-- Student joins queue on Node 1 → Node 2 sees it immediately
-- Admin clears a student on Node 2 → Node 1 reflects the update
-- Close Node 1 → Node 2 keeps running (fault tolerance)
-- Restart Node 1 → it requests a SYNC from Node 2 and rebuilds its queue
+A robust, decentralized queue management system built with JavaFX and SQLite. This system allows for real-time synchronization of student queue positions across multiple computer nodes using UDP multicast for discovery and TCP for state replication.
 
 ---
 
-## Prerequisites
+##  Key Features
 
-| Tool                        | Version | Download                          |
-| --------------------------- | ------- | --------------------------------- |
-| JDK                         | 17+     | https://adoptium.net              |
-| Maven                       | 3.8+    | https://maven.apache.org/download |
+- **Decentralized Architecture:** No central server is required. Nodes discover each other automatically on the local network.
+- **Role-Based Access Control:**
+    - **System Admin:** Full visibility of the global queue, authority to clear students, and ability to reset the entire network queue.
+    - **Student Portal:** Dynamic entry of registration details and real-time tracking of queue position and status.
+- **Fault Tolerance:** If a node goes offline, the rest of the network continues to function. Data is persisted locally in SQLite.
+- **Real-time Sync:** Uses custom TCP protocols to ensure that when an Admin clears a student, the update is reflected instantly on all student nodes.
 
 ---
 
-## Quick Start (Running on One Machine)
+## 🛠 Prerequisites
 
-### Step 1 — Open TWO terminal windows
+| Requirement | Version | Link |
+| :--- | :--- | :--- |
+| **Java JDK** | 17 or higher | [Download](https://adoptium.net) |
+| **Apache Maven** | 3.8 or higher | [Download](https://maven.apache.org/download) |
 
-### Step 2 — Build the project (first time only)
+---
 
+## 🚀 How to Run the Application
+
+To demonstrate the decentralized nature, you should run at least two instances (one Admin and one Student) in separate terminal windows.
+
+### 1. Build the Project
+Open your terminal in the project root and run:
 ```bash
 mvn clean compile
 ```
 
-### Step 3 — Start Node 1 (Terminal 1)
-
-**Admin Node:**
+### 2. Start the Admin Node
+The Admin node acts as the supervisor for the queue.
 ```bash
-mvn javafx:run -D javafx.args="5001 OFFICER ADMIN"
+mvn javafx:run -Djavafx.args="5001 ADMIN_01 ADMIN"
 ```
 
-### Step 4 — Start Node 2 (Terminal 2, wait ~5 seconds after Node 1)
-
+### 3. Start a Student Node
+Open a **new terminal window** and run:
 ```bash
-mvn javafx:run -D javafx.args="5002 NODE_002"
+mvn javafx:run -Djavafx.args="5002 STU_NODE"
 ```
-
-Node 2 will:
-
-1. Discover Node 1 via UDP multicast
-2. Send a SYNC_REQUEST to Node 1
-3. Receive all existing tickets in a SYNC_RESPONSE
-4. Display the synced queue in its UI
+*Note: You can start multiple student nodes by using different ports (e.g., 5003, 5004).*
 
 ---
 
-## Running in IntelliJ IDEA
+## 📖 Usage Instructions
 
-1. Open the `dqms-mvp` folder as a Maven project
-2. Let IntelliJ import dependencies (wait for Maven sync)
-3. Create two Run Configurations:
-
-**Run Config 1 — Node 1:**
-
-- Main class: `com.dqms.app.Main`
-- Program arguments: `5001 NODE_001`
-- VM options: `--module-path $JAVAFX_HOME/lib --add-modules javafx.controls,javafx.fxml`
-
-**Run Config 2 — Node 2:**
-
-- Main class: `com.dqms.app.Main`
-- Program arguments: `5002 NODE_002`
-
-4. Run Config 1 first, then Run Config 2
+1. **Launch the Admin Node:** Navigate to the "Queue" tab to see the live table.
+2. **Launch a Student Node:** 
+    - Enter a **Registration Number** and **Full Name**.
+    - Click **"Request Queue Position"**.
+3. **Observation:** Switch back to the Admin Node. The student's details will appear instantly in the table.
+4. **Action:** On the Admin Node, select the student and click **"Mark as Cleared"**.
+5. **Verification:** The Student Node will instantly update to show a **"CLEARED"** status and an "OK" position.
+6. **Reset:** Use the **"Reset Global Queue"** button on the Admin Dashboard to wipe the history across all connected nodes for a fresh test.
 
 ---
 
-## Demo Script (Show This to Your Supervisor)
+## 📂 Project Structure
 
-### Scene 1: Normal P2P Sync
-
-1. Start Node 1 and Node 2
-2. On **Node 1**: enter reg number + name, click "Join Queue"
-3. Watch **Node 2** update automatically (within ~1 second)
-4. On **Node 2**: enter a different student, click "Join Queue"
-5. Watch **Node 1** update — FIFO order is maintained across both nodes
-
-### Scene 2: Admin Clearance Propagation
-
-1. On **Node 1**: select a WAITING student, click "Mark Cleared"
-2. Watch **Node 2** update — student shows as CLEARED on both dashboards
-
-### Scene 3: Fault Tolerance (Node Failure)
-
-1. Close Node 1 (Ctrl+C or close window)
-2. On **Node 2**: add more students — it keeps working alone
-3. Restart Node 1: `mvn javafx:run -Djavafx.args="5001 NODE_001"`
-4. Node 1 rediscovers Node 2, requests SYNC, and rebuilds the full queue
-
-### Scene 4: Data Persistence
-
-1. Close BOTH nodes
-2. Check the generated `.db` files: `dqms_NODE_001.db`, `dqms_NODE_002.db`
-3. Restart Node 1 — it loads all tickets from its local SQLite file
-
----
-
-## Project Structure
-
-```
-dqms-mvp/
-├── pom.xml
-└── src/main/
-    ├── java/com/dqms/
-    │   ├── app/
-    │   │   └── Main.java              ← Entry point, startup sequence
-    │   ├── model/
-    │   │   ├── Ticket.java            ← Core data entity (Serializable)
-    │   │   ├── Message.java           ← TCP message envelope
-    │   │   └── NodeInfo.java          ← Peer registry entry
-    │   ├── db/
-    │   │   └── DatabaseManager.java   ← SQLite CRUD wrapper
-    │   ├── network/
-    │   │   ├── TCPServer.java         ← Accepts peer connections
-    │   │   ├── TCPClient.java         ← Sends messages to peers
-    │   │   ├── MessageHandler.java    ← Routes incoming messages
-    │   │   └── UDPDiscoveryService.java ← Multicast peer discovery
-    │   ├── queue/
-    │   │   └── QueueManager.java      ← Core business logic
-    │   └── ui/
-    │       └── MainController.java    ← JavaFX dashboard controller
-    └── resources/com/dqms/ui/
-        ├── main.fxml                  ← UI layout
-        └── style.css                  ← Styling
+```text
+src/main/java/com/dqms/
+├── app/
+│   └── Main.java                # Application entry and service coordination
+├── db/
+│   └── DatabaseManager.java     # SQLite persistence logic
+├── model/
+│   ├── Ticket.java              # Core queue entity
+│   ├── Message.java             # Network communication protocol
+│   └── NodeInfo.java            # Peer registry data
+├── network/
+│   ├── TCPServer/Client.java    # Peer-to-peer data transfer
+│   └── UDPDiscoveryService.java # Automatic node discovery
+├── queue/
+│   └── QueueManager.java        # Central business logic and sync handling
+└── ui/
+    └── MainController.java      # JavaFX UI event handling
 ```
 
 ---
 
-## Architecture at a Glance
-
-```
-┌──────────────────────┐         UDP Multicast (230.0.0.0:4446)         ┌──────────────────────┐
-│      NODE_001        │ ◄─────────────────────────────────────────────► │      NODE_002        │
-│    port 5001         │                                                  │    port 5002         │
-│                      │         TCP Sockets (direct connection)          │                      │
-│  JavaFX Dashboard    │ ◄─────────────────────────────────────────────► │  JavaFX Dashboard    │
-│  QueueManager        │                                                  │  QueueManager        │
-│  SQLite DB           │                                                  │  SQLite DB           │
-│  (dqms_NODE_001.db)  │                                                  │  (dqms_NODE_002.db)  │
-└──────────────────────┘                                                  └──────────────────────┘
-```
-
----
-
-## Troubleshooting
-
-| Problem                         | Solution                                                                |
-| ------------------------------- | ----------------------------------------------------------------------- |
-| Port already in use             | Change 5001/5002 to other ports e.g. 6001/6002                          |
-| Nodes don't discover each other | Ensure both run on same machine; check firewall isn't blocking UDP 4446 |
-| DB Errors / Blank UI            | Stop all nodes, delete the `*.db` files, and restart.                   |
-| `ClassNotFoundException`        | Run: `mvn clean compile`                                                |
+## 📝 Important Notes
+- **Persistence:** Each node creates its own `.db` file (e.g., `dqms_ADMIN_01.db`). These files are ignored by Git to ensure every new machine starts with a clean slate.
+- **Networking:** Ensure your firewall allows UDP traffic on port `4446` and TCP traffic on the ports you specify (default `5001+`).
